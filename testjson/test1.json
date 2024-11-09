@@ -1,6 +1,14 @@
 {
     "f":{
-        "text":"this is the first thing",
-        "answs":[]
+        "text":"this is the root object",
+        "answs":["first","second"],
+        "first":{
+            "text":"text on the first",
+            "answs":[]
+        },
+        "second":{
+            "text":"text on the second",
+            "answs":[]
+        }
     }
 }
