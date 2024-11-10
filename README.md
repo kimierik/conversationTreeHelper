@@ -1,5 +1,8 @@
-# conversation tree builder tool
+# Conversation tree builder tool
 Tool for making conversation trees that compiles into a single C header file.
+
+## motivation
+The goal of this is to help making text based games with large conversation trees less tedious and give the developper a way to compile the conversation tree to a native langauge.
 
 
 # cli utility
@@ -44,9 +47,8 @@ The "func" field contains a functino pointer that can be called with whatever an
 
 
 
-
-
 # TODO
 - Gui tool for visualising and building conversation trees.
 - json file generation
 - Option to check flags on each node
+- support multiple languages
