@@ -57,10 +57,8 @@ pub fn compileConvTree(outFile: *std.fs.File, objmap: std.json.ObjectMap) !void 
 
     // add root to state
     {
-        var fn_context = FnContext.init(root.object, FnId, allocator);
+        const fn_context = FnContext.init(root.object, FnId, allocator);
         FnId += 1;
-        // this should be real??
-        try fn_context.optionFns.append(FnId);
 
         try state.fns.append(fn_context);
 
@@ -74,8 +72,15 @@ pub fn compileConvTree(outFile: *std.fs.File, objmap: std.json.ObjectMap) !void 
 
 /// start writing state to file
 fn writeToFile(outFile: *std.fs.File, state: *_Parsed) !void {
+    // include guard
     _ = try outFile.write("#ifndef __CONV_TREE_HEADER \n");
     _ = try outFile.write("#define __CONV_TREE_HEADER \n");
+    _ = try outFile.write("\n");
+
+    // standard definitions
+    _ = try outFile.write("#include <stdio.h>\n");
+    _ = try outFile.write("#include <stdlib.h>\n");
+    _ = try outFile.write("\n");
 
     _ = try outFile.write("// STATIC STRING DEFINITIONS\n\n");
 
@@ -99,43 +104,99 @@ fn writeToFile(outFile: *std.fs.File, state: *_Parsed) !void {
         \\}FnContext;
         \\
     ;
+    _ = try outFile.write("// MISC DECLARATIONS\n\n");
     try std.fmt.format(outFile.writer(), "{s}\n", .{structDef});
 
-    // fn declarationw before definitions
-    _ = try outFile.write("static FnContext convTreeRoot(void);\n");
+    _ = try outFile.write("static void fatal(const char *txt){ printf(\"%s\\n\",txt);exit(1); } \n");
 
+    // fn declarationw before definitions
+    _ = try outFile.write("static FnContext convTreeRoot(void);\n\n");
+
+    _ = try outFile.write("// FUNCTION DECLARATIONS\n\n");
+    try writeFnDeclarations(outFile, state);
     _ = try outFile.write("\n");
 
-    // include guard for definitions
-    _ = try outFile.write("#ifndef __CONV_TREE_IMPLEMENTATION \n");
-    _ = try outFile.write("#define __CONV_TREE_IMPLEMENTATION \n");
+    _ = try outFile.write("// FUNCTION DEFINITIONS\n\n");
+
     _ = try outFile.write("FnContext convTreeRoot(void){\n");
 
-    try std.fmt.format(outFile.writer(), "\t return {c}.text= \"{s}\", .answerC= {d}, .func = {s} {c} ; \n", .{
+    try std.fmt.format(outFile.writer(), "\treturn {c}.text= string{d}, .answerC= {d}, .func = fnp{s} {c} ; \n", .{
         '{',
-        state.strings.items[0],
+        0,
         state.fns.items[0].options,
-        "0", // we need the address of the first function and the definition of it
+        "0", // id of the first fn
         '}',
     });
     _ = try outFile.write("}\n");
 
-    // fn definitions
-    _ = try outFile.write("#endif\n");
+    for (0..state.fns.items.len) |id| {
+        try writeFnDefinition(outFile, state, @intCast(id));
+    }
+
     _ = try outFile.write("#endif\n");
 }
 
+/// write definition for function
+fn writeFnDefinition(outFile: *std.fs.File, state: *_Parsed, id: FunctionId) !void {
+    try std.fmt.format(outFile.writer(), "FnContext fnp{d}(int option)", .{id});
+    _ = try outFile.write("{\n");
+    try writeSwitchStatement(outFile, state, id);
+    _ = try outFile.write("}\n");
+}
+
+/// write function definition to c outfile
+fn writeFnDeclarations(outFile: *std.fs.File, state: *_Parsed) !void {
+    for (0..state.fns.items.len) |i| {
+        try std.fmt.format(outFile.writer(), "static FnContext fnp{d}(int option);\n", .{i});
+    }
+}
+
+/// write C switch statement to outfile
+fn writeSwitchStatement(outFile: *std.fs.File, state: *_Parsed, id: FunctionId) !void {
+    //
+    try std.fmt.format(outFile.writer(), "\tswitch(option)", .{});
+    _ = try outFile.write("{\n");
+
+    const nofOptions = state.fns.items[@intCast(id)].options;
+    for (0..nofOptions) |i| {
+        try std.fmt.format(outFile.writer(), "\t\tcase {d}:\n", .{i});
+        // return appropriate struct
+
+        const childFnId = state.fns.items[@intCast(id)].optionFns.items[i]; // need to find propper child fn id's
+        const childFn = state.fns.items[@intCast(childFnId)];
+        try std.fmt.format(outFile.writer(), "\t\t\treturn {c}.text= string{d}, .answerC= {d}, .func = fnp{d} {c} ; \n", .{
+            '{',
+            childFnId,
+            childFn.options,
+            childFnId, // we need to define all fns
+            '}',
+        });
+
+        _ = try outFile.write("\t\t\tbreak;\n");
+    }
+
+    _ = try outFile.write("\t\tdefault:\n");
+    _ = try outFile.write("\t\t\tfatal(\"Incorrect Option\");\n");
+    _ = try outFile.write("\t}\n");
+    _ = try outFile.write("\texit(1);\n");
+}
+
+// this fn needs rewrite
 // appends to list
 fn recursiveFnParse(node: std.json.Value, id: *FunctionId, allocator: std.mem.Allocator, state: *_Parsed) !void {
+
     // go throuhg the answs list and add the fns
     const anslist = node.object.get("answs").?.array;
+    var node_fn_object = &state.fns.items[id.* - 1];
     for (anslist.items) |value| {
+        // js object that defines the child function
         const fnobj = node.object.get(value.string).?.object;
 
-        var fn_context = FnContext.init(fnobj, id.*, allocator);
+        const fn_context = FnContext.init(fnobj, id.*, allocator); // this is child fncontext??
+
+        // node fn objects optionfsn needs to be updated
+        try node_fn_object.optionFns.append(id.*);
         id.* += 1;
-        // this should be real??
-        try fn_context.optionFns.append(id.*);
 
         try state.fns.append(fn_context);
 
