@@ -8,7 +8,7 @@ const FnContext = struct {
     const Self = @This();
     id: FunctionId, //id of fn
 
-    options: usize, // num of options
+    options: []std.json.Value,
 
     text: string_signature, // slice of the text
 
@@ -19,7 +19,7 @@ const FnContext = struct {
         return Self{
             .id = id,
             .text = val.get("text").?.string,
-            .options = val.get("answs").?.array.items.len,
+            .options = val.get("answs").?.array.items,
             // nothing is appended to this at any point
             .optionFns = std.ArrayList(FunctionId).init(allocator),
         };
@@ -87,6 +87,14 @@ fn writeToFile(outFile: *std.fs.File, state: *_Parsed) !void {
     // debug to see that things are real
     for (state.strings.items, 0..) |value, i| {
         try std.fmt.format(outFile.writer(), "static const char* string{d} = \"{s}\";\n", .{ i, value });
+        // define answer strings here aswell
+        for (0..state.fns.items[i].options.len) |j| {
+            try std.fmt.format(outFile.writer(), "static const char* fn{d}ans{d} = \"{s}\";\n", .{
+                i,
+                j,
+                state.fns.items[i].options[j].string,
+            });
+        }
     }
     _ = try outFile.write("\n");
 
@@ -100,6 +108,7 @@ fn writeToFile(outFile: *std.fs.File, state: *_Parsed) !void {
         \\typedef struct FnContext{
         \\    const char* text;
         \\    const int answerC;
+        \\    const char** answers;
         \\    struct FnContext (*func)(int);
         \\}FnContext;
         \\
@@ -120,11 +129,9 @@ fn writeToFile(outFile: *std.fs.File, state: *_Parsed) !void {
 
     _ = try outFile.write("FnContext convTreeRoot(void){\n");
 
+    // TODO this needs the string fn contesxt
     try std.fmt.format(outFile.writer(), "\treturn {c}.text= string{d}, .answerC= {d}, .func = fnp{s} {c} ; \n", .{
-        '{',
-        0,
-        state.fns.items[0].options,
-        "0", // id of the first fn
+        '{', 0, state.fns.items[0].options.len, "0", // id of the first fn
         '}',
     });
     _ = try outFile.write("}\n");
@@ -156,18 +163,26 @@ fn writeSwitchStatement(outFile: *std.fs.File, state: *_Parsed, id: FunctionId) 
     //
     try std.fmt.format(outFile.writer(), "\tswitch(option)", .{});
     _ = try outFile.write("{\n");
+    const allocator = undefined;
 
-    const nofOptions = state.fns.items[@intCast(id)].options;
+    const nofOptions = state.fns.items[@intCast(id)].options.len;
     for (0..nofOptions) |i| {
         try std.fmt.format(outFile.writer(), "\t\tcase {d}:\n", .{i});
         // return appropriate struct
 
         const childFnId = state.fns.items[@intCast(id)].optionFns.items[i]; // need to find propper child fn id's
         const childFn = state.fns.items[@intCast(childFnId)];
-        try std.fmt.format(outFile.writer(), "\t\t\treturn {c}.text= string{d}, .answerC= {d}, .func = fnp{d} {c} ; \n", .{
+
+        var optionString: ?[]u8 = null;
+        for (childFn.options) |value| {
+            optionString = try std.mem.concat(allocator, u8, &.{ optionString.?, value.string });
+        }
+
+        try std.fmt.format(outFile.writer(), "\t\t\treturn {c}.text= string{d}, .answerC= {d},  .answers= {{ {s} }},.func = fnp{d}, {c} ; \n", .{
             '{',
             childFnId,
-            childFn.options,
+            childFn.options.len,
+            if (optionString) |s| s else "0,0", // needs to be all optonstrings.. childfn options as strinsg
             childFnId, // we need to define all fns
             '}',
         });
