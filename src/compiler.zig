@@ -42,6 +42,7 @@ const _Parsed = struct {
 pub fn compileConvTree(outFile: *std.fs.File, objmap: std.json.ObjectMap) !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     const allocator = arena.allocator();
+    defer arena.deinit();
 
     var state = _Parsed{
         .strings = std.ArrayList(string_signature).init(allocator),
@@ -67,11 +68,11 @@ pub fn compileConvTree(outFile: *std.fs.File, objmap: std.json.ObjectMap) !void 
     // recursively add all fns
     try recursiveFnParse(root, &FnId, allocator, &state);
 
-    try writeToFile(outFile, &state);
+    try writeToFile(outFile, &state, allocator);
 }
 
 /// start writing state to file
-fn writeToFile(outFile: *std.fs.File, state: *_Parsed) !void {
+fn writeToFile(outFile: *std.fs.File, state: *_Parsed, allocator: std.mem.Allocator) !void {
     // include guard
     _ = try outFile.write("#ifndef __CONV_TREE_HEADER \n");
     _ = try outFile.write("#define __CONV_TREE_HEADER \n");
@@ -88,13 +89,16 @@ fn writeToFile(outFile: *std.fs.File, state: *_Parsed) !void {
     for (state.strings.items, 0..) |value, i| {
         try std.fmt.format(outFile.writer(), "static const char* string{d} = \"{s}\";\n", .{ i, value });
         // define answer strings here aswell
-        for (0..state.fns.items[i].options.len) |j| {
-            try std.fmt.format(outFile.writer(), "static const char* fn{d}ans{d} = \"{s}\";\n", .{
-                i,
-                j,
-                state.fns.items[i].options[j].string,
-            });
+
+        // this algo leaks mem like hell but we are using arena allocator here so it is good??
+        var optionString: []u8 = "";
+        for (state.fns.items[i].options) |answerName| {
+            optionString = try std.mem.concat(allocator, u8, &.{ optionString, "\"", answerName.string, "\"", "," });
         }
+        try std.fmt.format(outFile.writer(), "static const char* fn{d}ans[] = {{ {?s} }};\n", .{
+            i,
+            optionString,
+        });
     }
     _ = try outFile.write("\n");
 
@@ -130,7 +134,7 @@ fn writeToFile(outFile: *std.fs.File, state: *_Parsed) !void {
     _ = try outFile.write("FnContext convTreeRoot(void){\n");
 
     // TODO this needs the string fn contesxt
-    try std.fmt.format(outFile.writer(), "\treturn {c}.text= string{d}, .answerC= {d}, .func = fnp{s} {c} ; \n", .{
+    try std.fmt.format(outFile.writer(), "\treturn {c}.text= string{d}, .answerC= {d}, .answers=fn0ans, .func = fnp{s} {c} ; \n", .{
         '{', 0, state.fns.items[0].options.len, "0", // id of the first fn
         '}',
     });
@@ -163,7 +167,6 @@ fn writeSwitchStatement(outFile: *std.fs.File, state: *_Parsed, id: FunctionId) 
     //
     try std.fmt.format(outFile.writer(), "\tswitch(option)", .{});
     _ = try outFile.write("{\n");
-    const allocator = undefined;
 
     const nofOptions = state.fns.items[@intCast(id)].options.len;
     for (0..nofOptions) |i| {
@@ -173,16 +176,11 @@ fn writeSwitchStatement(outFile: *std.fs.File, state: *_Parsed, id: FunctionId) 
         const childFnId = state.fns.items[@intCast(id)].optionFns.items[i]; // need to find propper child fn id's
         const childFn = state.fns.items[@intCast(childFnId)];
 
-        var optionString: ?[]u8 = null;
-        for (childFn.options) |value| {
-            optionString = try std.mem.concat(allocator, u8, &.{ optionString.?, value.string });
-        }
-
-        try std.fmt.format(outFile.writer(), "\t\t\treturn {c}.text= string{d}, .answerC= {d},  .answers= {{ {s} }},.func = fnp{d}, {c} ; \n", .{
+        try std.fmt.format(outFile.writer(), "\t\t\treturn {c}.text= string{d}, .answerC= {d},  .answers= fn{d}ans,.func = fnp{d}, {c} ; \n", .{
             '{',
             childFnId,
             childFn.options.len,
-            if (optionString) |s| s else "0,0", // needs to be all optonstrings.. childfn options as strinsg
+            childFnId,
             childFnId, // we need to define all fns
             '}',
         });
