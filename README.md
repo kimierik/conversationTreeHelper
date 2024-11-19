@@ -5,14 +5,14 @@ Tool for making conversation trees that compiles into a single C header file.
 The goal of this is to help making text based games with large conversation trees less tedious and give the developper a way to compile the conversation tree to a native langauge.
 
 
-# cli utility
-Build cli tool
+# Building 
 ```sh
-zig build compiler
+zig build 
 ```
-This builds the CLI tool to zig-out/bin/conversationTreeTool.
+This builds a Gui and a Cli tool to zig-out/bin.
+
   
-The tool compiles a .json file [examples here](./testjson).
+The tool compiles a json file. [examples here](./testjson).
 Json files can be made manually but using generated json files is advised.
 
   
@@ -27,6 +27,7 @@ Context is defined as follows.
 typedef struct FnContext{
     const char* text;
     const int answerC;
+    const char** answers;
     struct FnContext (*func)(int);
 }FnContext;
 ```
@@ -45,6 +46,10 @@ The "func" field contains a functino pointer that can be called with whatever an
     struct FnContext (*func)(int);
 ```
 
+The "answers" field contains all the answers or paths the user can take in this node.
+```c
+    const char** answers;
+```
 
 
 # TODO
