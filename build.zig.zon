@@ -3,7 +3,10 @@
 
     .version = "0.0.0",
 
-    .dependencies = .{},
+    .dependencies = .{
+        .guiTool = .{ .path = "src/guiCompiler" },
+        .cliTool = .{ .path = "src/clicompiler" },
+    },
 
     .paths = .{
         "build.zig",

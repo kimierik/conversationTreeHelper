@@ -1,0 +1,23 @@
+.{
+    .name = "GuiConversationTreeTool",
+
+    .version = "0.0.0",
+
+    .dependencies = .{
+        .raylib = .{
+            .url = "https://github.com/raysan5/raylib/archive/95e766472f0b71c66b97e2fb7d612b335194da17.tar.gz",
+            .hash = "12204b298e35c7b718a09cf0a9369ec0ee4c3cd777554313228476fbac6b40057871",
+        },
+        .raygui = .{
+            .url = "https://github.com/raysan5/raygui/archive/1e03efca48c50c5ea4b4a053d5bf04bad58d3e43.tar.gz",
+            .hash = "122062b24f031e68f0d11c91dfc32aed5baf06caf26ed3c80ea1802f9e788ef1c358",
+        },
+        .compiler = .{ .path = "../compilerlib" },
+    },
+
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}

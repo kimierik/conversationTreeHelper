@@ -120,7 +120,7 @@ fn writeToFile(outFile: *std.fs.File, state: *_Parsed, allocator: std.mem.Alloca
     _ = try outFile.write("// MISC DECLARATIONS\n\n");
     try std.fmt.format(outFile.writer(), "{s}\n", .{structDef});
 
-    _ = try outFile.write("static void fatal(const char *txt){ printf(\"%s\\n\",txt);exit(1); } \n");
+    _ = try outFile.write("static _Noreturn void fatal(const char *txt){ printf(\"%s\\n\",txt);exit(1); } \n");
 
     // fn declarationw before definitions
     _ = try outFile.write("static FnContext convTreeRoot(void);\n\n");

@@ -1,0 +1,13 @@
+.{
+    .name = "CliConversationTreeTool",
+
+    .version = "0.0.0",
+
+    .dependencies = .{ .compiler = .{ .path = "../compilerlib" } },
+
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}

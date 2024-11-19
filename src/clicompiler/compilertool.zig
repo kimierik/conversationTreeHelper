@@ -1,5 +1,5 @@
 const std = @import("std");
-const compiler = @import("compiler.zig");
+const compiler = @import("compiler");
 
 const helpmsg =
     \\Useage : compiler [options] 
